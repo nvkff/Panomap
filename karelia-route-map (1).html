@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Маршрут по Карелии — Санкт-Петербург, Сортавала, Рускеала</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #111111;
+            --muted: #666666;
+            --accent: #1e3a8a;
+            --border: #cccccc;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            display: flex;
+            height: 100vh;
+            background: #fff;
+            color: var(--text);
+        }
+
+        /* ── Боковая панель ── */
+        #sidebar {
+            width: 360px;
+            min-width: 360px;
+            background: #fff;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        #sidebar-header {
+            padding: 22px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: #fff;
+            z-index: 2;
+        }
+
+        #sidebar-header h1 {
+            font-size: 1.2em;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            margin-bottom: 4px;
+        }
+
+        #sidebar-header .subtitle {
+            font-size: 0.78em;
+            color: var(--muted);
+        }
+
+        #route-stats {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.65em;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        #waypoint-list {
+            list-style: none;
+            padding: 6px 0;
+            flex: 1;
+        }
+
+        #waypoint-list li {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        #waypoint-list li:hover {
+            background: #f7f7f7;
+            border-left-color: var(--accent);
+        }
+
+        #waypoint-list li.active {
+            background: #eef2ff;
+            border-left-color: var(--accent);
+        }
+
+        .wp-num {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            min-width: 30px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid #aaa;
+            color: #333;
+            font-weight: 700;
+            font-size: 0.85em;
+            transition: all 0.15s ease;
+        }
+
+        #waypoint-list li:hover .wp-num,
+        #waypoint-list li.active .wp-num {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+
+        .wp-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .wp-name {
+            font-weight: 600;
+            font-size: 0.88em;
+            margin-bottom: 2px;
+        }
+
+        .wp-desc {
+            font-size: 0.72em;
+            color: var(--muted);
+            line-height: 1.35;
+        }
+
+        .wp-dist {
+            font-size: 0.7em;
+            color: var(--accent);
+            margin-top: 3px;
+            font-weight: 600;
+        }
+
+        /* ── Карта ── */
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+
+        /* ── Адаптив ── */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            #sidebar {
+                width: 100%;
+                min-width: 100%;
+                max-height: 38vh;
+                flex-shrink: 0;
+            }
+            #map {
+                height: 62vh;
+                flex: none;
+            }
+        }
+
+        /* ── Кастомные попапы Leaflet ── */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            border: 1px solid #ddd;
+        }
+
+        .leaflet-popup-content {
+            font-size: 0.88em;
+            margin: 10px 14px;
+        }
+
+        .leaflet-popup-content b {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div id="sidebar-header">
+            <h1>🚗 Автомаршрут по Карелии</h1>
+            <div class="subtitle">Санкт-Петербург → Приозерск → Рускеала → Сортавала → СПб</div>
+            <div id="route-stats">
+                <div class="stat-item">
+                    <span class="stat-value">13</span>
+                    <span class="stat-label">Точек</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="total-dist">~560</span>
+                    <span class="stat-label">Км (прямые)</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">12</span>
+                    <span class="stat-label">Отрезков</span>
+                </div>
+            </div>
+        </div>
+        <ul id="waypoint-list"></ul>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ──────────────────────────────────────────
+        // Точки маршрута
+        // ──────────────────────────────────────────
+        const waypoints = [
+            { num: 1, name: 'Санкт-Петербург', desc: 'Старт маршрута', lat: 59.9343, lng: 30.3351 },
+            { num: 2, name: 'Приозерск — Крепость Корела', desc: 'Каменная крепость XIV века на острове Вуоксы', lat: 61.0391,
+                lng: 30.1291 },
+            { num: 3, name: 'Лахденпохья — Лютеранская кирха', desc: 'Историческая финская кирха, памятник архитектуры',
+                lat: 61.5193, lng: 30.1991 },
+            { num: 4, name: 'Сортавала', desc: 'Столица Приладожья, северный берег Ладоги', lat: 61.7036, lng: 30.6917 },
+            { num: 5, name: 'Водопады Ахвенкоски', desc: 'Каскад на реке Тохмайоки, место съёмок фильмов', lat: 61.9250,
+                lng: 30.5850 },
+            { num: 6, name: 'Горный парк «Рускеала»', desc: 'Знаменитый мраморный каньон с бирюзовой водой', lat: 61.9457,
+                lng: 30.5798 },
+            { num: 7, name: 'Сортавала (ночёвка)', desc: 'Возвращение в город', lat: 61.7050, lng: 30.6930 },
+            { num: 8, name: 'Водопады Койриноя', desc: 'Каскадные пороги и водопады у деревни Койриноя', lat: 61.6730,
+                lng: 30.6880 },
+            { num: 9, name: 'Добыча полудрагоценных камней', desc: 'Кительское месторождение граната', lat: 61.6770,
+                lng: 30.6030 },
+            { num: 10, name: 'Исторический парк «Бастион»', desc: 'Музей живой истории, реконструкция крепости', lat: 61.7030,
+                lng: 30.6900 },
+            { num: 11, name: 'Гора Паасо', desc: 'Древнее городище с панорамным видом на Ладожские шхеры', lat: 61.7180,
+                lng: 30.6680 },
+            { num: 12, name: 'Водопад Метсямикли', desc: 'Уединённый лесной водопад среди карельских скал', lat: 61.9070,
+                lng: 30.5920 },
+            { num: 13, name: 'Санкт-Петербург (финиш)', desc: 'Возвращение домой', lat: 59.9355, lng: 30.3365 },
+        ];
+
+        // ──────────────────────────────────────────
+        // Расстояние (гаверсинус)
+        // ──────────────────────────────────────────
+        function haversineKm(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // ──────────────────────────────────────────
+        // Создание карты
+        // ──────────────────────────────────────────
+        const map = L.map('map', {
+            attributionControl: true,
+        }).setView([61.0, 30.5], 8);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18,
+        }).addTo(map);
+
+        // ──────────────────────────────────────────
+        // Фабрика иконок
+        // ──────────────────────────────────────────
+        function makeIcon(num, active = false) {
+            const bg = active ? '#1e3a8a' : '#ffffff';
+            const border = '#1e3a8a';
+            const color = active ? '#ffffff' : '#1e3a8a';
+            return L.divIcon({
+                className: '',
+                html: `<div style="
+                    width:32px;height:32px;
+                    background:${bg};
+                    border:2px solid ${border};
+                    border-radius:50%;
+                    display:flex;align-items:center;justify-content:center;
+                    color:${color};font-weight:700;font-size:13px;
+                    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+                    cursor:pointer;
+                ">${num}</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -17],
+            });
+        }
+
+        // ──────────────────────────────────────────
+        // Расстановка маркеров и линии
+        // ──────────────────────────────────────────
+        const markers = [];
+        const latlngs = [];
+
+        waypoints.forEach((wp) => {
+            const ll = [wp.lat, wp.lng];
+            latlngs.push(ll);
+
+            const marker = L.marker(ll, { icon: makeIcon(wp.num) }).addTo(map);
+            marker.bindPopup(`
+                <b>${wp.num}. ${wp.name}</b><br>
+                <span style="color:#555;font-size:0.85em;">${wp.desc}</span><br>
+                <span style="color:#1e3a8a;font-size:0.75em;">${wp.lat.toFixed(4)}°, ${wp.lng.toFixed(4)}°</span>
+            `);
+            marker._wpIndex = wp.num - 1;
+            markers.push(marker);
+        });
+
+        // Основная линия
+        L.polyline(latlngs, {
+            color: '#1e3a8a',
+            weight: 4,
+            opacity: 0.85,
+            smoothFactor: 1,
+        }).addTo(map);
+
+        // Полупрозрачная подложка
+        L.polyline(latlngs, {
+            color: '#1e3a8a',
+            weight: 14,
+            opacity: 0.1,
+            smoothFactor: 1,
+        }).addTo(map);
+
+        // Вписываем все точки в экран
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [45, 45] });
+
+        // ──────────────────────────────────────────
+        // Боковая панель
+        // ──────────────────────────────────────────
+        const listEl = document.getElementById('waypoint-list');
+        let totalDist = 0;
+
+        waypoints.forEach((wp, i) => {
+            const li = document.createElement('li');
+            li.setAttribute('data-index', i);
+
+            let distStr = '';
+            if (i < waypoints.length - 1) {
+                const d = haversineKm(wp.lat, wp.lng, waypoints[i + 1].lat, waypoints[i + 1].lng);
+                totalDist += d;
+                distStr = `→ ${Math.round(d)} км`;
+            }
+
+            li.innerHTML = `
+                <div class="wp-num">${wp.num}</div>
+                <div class="wp-info">
+                    <div class="wp-name">${wp.name}</div>
+                    <div class="wp-desc">${wp.desc}</div>
+                    ${distStr ? `<div class="wp-dist">${distStr}</div>` : ''}
+                </div>
+            `;
+
+            li.addEventListener('click', () => {
+                map.setView([wp.lat, wp.lng], 13, { animate: true });
+                markers[i].openPopup();
+
+                document.querySelectorAll('#waypoint-list li').forEach(el => el.classList.remove(
+                    'active'));
+                li.classList.add('active');
+
+                markers.forEach((m, idx) => {
+                    m.setIcon(makeIcon(waypoints[idx].num, idx === i));
+                });
+            });
+
+            listEl.appendChild(li);
+        });
+
+        document.getElementById('total-dist').textContent = '~' + Math.round(totalDist);
+
+        // Клик по маркеру → подсветка в панели
+        markers.forEach((marker, i) => {
+            marker.on('click', () => {
+                document.querySelectorAll('#waypoint-list li').forEach(el => el.classList.remove(
+                    'active'));
+                const li = listEl.querySelector(`li[data-index="${i}"]`);
+                if (li) li.classList.add('active');
+
+                markers.forEach((m, idx) => {
+                    m.setIcon(makeIcon(waypoints[idx].num, idx === i));
+                });
+            });
+        });
+
+        // ──────────────────────────────────────────
+        // Метки СТАРТ / ФИНИШ
+        // ──────────────────────────────────────────
+        const startIcon = L.divIcon({
+            className: '',
+            html: '<div style="background:#1e3a8a;color:#fff;padding:3px 8px;border-radius:3px;font-weight:700;font-size:10px;white-space:nowrap;">СТАРТ</div>',
+            iconSize: [56, 22],
+            iconAnchor: [28, 11],
+        });
+        const finishIcon = L.divIcon({
+            className: '',
+            html: '<div style="background:#dc2626;color:#fff;padding:3px 8px;border-radius:3px;font-weight:700;font-size:10px;white-space:nowrap;">ФИНИШ</div>',
+            iconSize: [56, 22],
+            iconAnchor: [28, 11],
+        });
+
+        L.marker([waypoints[0].lat - 0.02, waypoints[0].lng], { icon: startIcon, interactive: false }).addTo(map);
+        L.marker([waypoints[12].lat + 0.02, waypoints[12].lng], { icon: finishIcon, interactive: false }).addTo(map);
+    </script>
+</body>
+</html>
