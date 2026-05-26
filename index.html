@@ -7,92 +7,56 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- exifr для чтения GPS из EXIF в браузере -->
     <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
 
     <style>
         :root {
-            --bg: #1e1e2e;
-            --text: #cdd6f4;
-            --accent: #89b4fa;
-            --hover: #313244;
+            --bg: #1e1e2e; --text: #cdd6f4; --accent: #89b4fa; --hover: #313244;
             --shadow: 0 4px 24px rgba(0,0,0,0.3);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; background: #000; }
         #map { width: 100%; height: 100vh; z-index: 1; }
 
-        /* Панель */
         #panel {
-            position: fixed; top: 0; left: 0;
-            width: 320px; height: 100vh;
-            background: var(--bg); color: var(--text);
-            z-index: 1000; box-shadow: var(--shadow);
-            display: flex; flex-direction: column;
+            position: fixed; top: 0; left: 0; width: 320px; height: 100vh;
+            background: var(--bg); color: var(--text); z-index: 1000;
+            box-shadow: var(--shadow); display: flex; flex-direction: column;
             transition: transform 0.3s;
         }
         #panel.hidden { transform: translateX(-100%); }
         #panel-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
             display: flex; justify-content: space-between; align-items: center;
         }
-        #panel-header h2 { font-size: 17px; font-weight: 600; }
-        .count { font-size: 13px; opacity: 0.6; background: rgba(255,255,255,0.06); padding: 3px 10px; border-radius: 20px; }
+        #panel-header h2 { font-size: 17px; }
+        .count { font-size: 12px; opacity: 0.6; background: rgba(255,255,255,0.06); padding: 3px 10px; border-radius: 20px; }
         #search {
-            margin: 10px 16px; padding: 10px 14px;
-            border-radius: 8px; border: none;
-            background: rgba(255,255,255,0.06); color: var(--text);
-            font-size: 14px; outline: none;
+            margin: 10px 16px; padding: 10px 14px; border-radius: 8px; border: none;
+            background: rgba(255,255,255,0.06); color: var(--text); font-size: 14px; outline: none;
         }
         #search::placeholder { color: rgba(205,214,244,0.4); }
-
-        /* Прогресс-бар */
-        #progress-wrap {
-            margin: 6px 16px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 6px;
-            height: 6px;
-            overflow: hidden;
-            display: none;
-        }
-        #progress-bar {
-            height: 100%;
-            background: var(--accent);
-            width: 0%;
-            transition: width 0.3s;
-            border-radius: 6px;
-        }
-        #progress-text {
-            font-size: 11px;
-            opacity: 0.5;
-            margin: 4px 16px;
-            display: none;
-            text-align: center;
-        }
-
+        #status-line { font-size: 11px; opacity: 0.6; margin: 0 16px 8px; text-align: center; min-height: 16px; }
         #list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
         #list::-webkit-scrollbar { width: 4px; }
         #list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
         .panorama-item {
-            padding: 10px 14px; margin: 2px 0;
-            border-radius: 8px; cursor: pointer;
-            font-size: 14px; white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis;
-            transition: 0.15s;
-            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 14px; margin: 2px 0; border-radius: 8px; cursor: pointer;
+            font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: 0.15s; display: flex; justify-content: space-between; align-items: center;
         }
         .panorama-item:hover { background: var(--hover); }
         .panorama-item.active { background: rgba(137,180,250,0.12); color: var(--accent); }
         .panorama-item .coords { font-size: 11px; opacity: 0.4; margin-left: 8px; flex-shrink: 0; }
         .panorama-item .no-coords { font-size: 11px; color: #f38ba8; margin-left: 8px; flex-shrink: 0; }
+        .panorama-item .loading-dot { font-size: 11px; opacity: 0.4; margin-left: 8px; flex-shrink: 0; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 0.3; } 50% { opacity: 0.8; } }
 
         #toggle-panel {
             position: fixed; top: 16px; left: 330px; z-index: 1001;
-            width: 38px; height: 38px; border-radius: 50%;
-            background: var(--bg); color: var(--text);
-            border: none; cursor: pointer; font-size: 18px;
+            width: 38px; height: 38px; border-radius: 50%; background: var(--bg);
+            color: var(--text); border: none; cursor: pointer; font-size: 18px;
             box-shadow: var(--shadow); transition: left 0.3s;
             display: flex; align-items: center; justify-content: center;
         }
@@ -101,14 +65,12 @@
 
         #layer-control {
             position: fixed; top: 16px; right: 16px; z-index: 1001;
-            background: var(--bg); border-radius: 10px;
-            padding: 4px; box-shadow: var(--shadow);
-            display: flex; gap: 2px;
+            background: var(--bg); border-radius: 10px; padding: 4px;
+            box-shadow: var(--shadow); display: flex; gap: 2px;
         }
         .layer-btn {
-            padding: 8px 14px; border: none;
-            background: transparent; color: var(--text);
-            cursor: pointer; border-radius: 7px;
+            padding: 8px 14px; border: none; background: transparent;
+            color: var(--text); cursor: pointer; border-radius: 7px;
             font-size: 13px; font-weight: 500;
         }
         .layer-btn:hover { background: var(--hover); }
@@ -116,8 +78,7 @@
 
         #modal-overlay {
             display: none; position: fixed; inset: 0; z-index: 2000;
-            background: rgba(0,0,0,0.9);
-            justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.9); justify-content: center; align-items: center;
         }
         #modal-overlay.open { display: flex; }
         #modal-content {
@@ -126,22 +87,18 @@
         }
         #modal-close {
             position: absolute; top: 10px; right: 16px; z-index: 10;
-            background: rgba(0,0,0,0.5); color: #fff;
-            border: none; font-size: 28px; width: 40px; height: 40px;
-            border-radius: 50%; cursor: pointer; line-height: 1;
+            background: rgba(0,0,0,0.5); color: #fff; border: none;
+            font-size: 28px; width: 40px; height: 40px; border-radius: 50%;
+            cursor: pointer; line-height: 1;
         }
         #modal-close:hover { background: rgba(255,255,255,0.2); }
-        #modal-image-wrap {
-            max-height: 80vh; overflow: auto;
-            display: flex; justify-content: center;
-        }
+        #modal-image-wrap { max-height: 80vh; overflow: auto; display: flex; justify-content: center; }
         #modal-image-wrap::-webkit-scrollbar { height: 6px; }
         #modal-image-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
         #modal-image { height: 75vh; width: auto; object-fit: contain; }
         #modal-info {
-            padding: 12px 20px; display: flex;
-            justify-content: space-between; align-items: center;
-            color: #ccc; font-size: 14px;
+            padding: 12px 20px; display: flex; justify-content: space-between;
+            align-items: center; color: #ccc; font-size: 14px;
         }
         #modal-info a { color: var(--accent); text-decoration: none; }
         #modal-info a:hover { text-decoration: underline; }
@@ -162,15 +119,12 @@
             <h2>📷 Панорамы</h2>
             <span class="count" id="panorama-count">0</span>
         </div>
-        <div id="progress-wrap"><div id="progress-bar"></div></div>
-        <div id="progress-text"></div>
         <input type="text" id="search" placeholder="🔍 Поиск по названию..." autocomplete="off">
-        <div id="list">
-            <div style="padding:20px;opacity:0.5;text-align:center;">Загрузка...</div>
-        </div>
+        <div id="status-line">Загрузка списка...</div>
+        <div id="list"></div>
     </div>
 
-    <button id="toggle-panel">☰</button>
+    <button id="toggle-panel" title="Скрыть/показать панель">☰</button>
 
     <div id="layer-control">
         <button class="layer-btn active" data-layer="vector">🗺 Вектор</button>
@@ -192,19 +146,11 @@
 
     <script>
         (function () {
-            // ==================== Список файлов (захардкожен или генерируется) ====================
-            // Вставьте сюда список ваших файлов вручную, если не хотите гадать.
-            // Либо оставьте массив пустым — сайт попробует распространённые расширения.
+            // ==================== НАСТРОЙКИ ====================
+            const REPO_OWNER = 'ВАШ_ЛОГИН';     // ← ЗАМЕНИТЕ на ваш GitHub-логин
+            const REPO_NAME = 'ВАШ_РЕПОЗИТОРИЙ'; // ← ЗАМЕНИТЕ на название репозитория
             const PANORAMA_DIR = 'panoramas';
-
-            // Можно захардкодить имена файлов здесь (если знаете их):
-            // const FILE_LIST = ['закат.jpg', 'вид_с_горы.png', 'панорама_1.jpeg'];
-            // Если FILE_LIST пуст — сайт будет перебирать файлы по номерам (медленно, не рекомендую).
-            const FILE_LIST = [
-                // Впишите сюда имена ваших файлов, например:
-                // 'DSC_0001.jpg',
-                // 'IMG_2024_pano.png',
-            ];
+            const CACHE_KEY = 'pano_cache_v2';
 
             // ==================== Карта ====================
             const map = L.map('map').setView([55.75, 37.62], 5);
@@ -239,8 +185,26 @@
                 toggleBtn.classList.toggle('shifted');
             });
 
-            // ==================== Чтение GPS ====================
-            async function extractGPSFromURL(url) {
+            // ==================== GitHub API ====================
+            async function fetchFileList() {
+                const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${PANORAMA_DIR}`;
+                const resp = await fetch(url);
+                if (!resp.ok) {
+                    throw new Error(`GitHub API error: ${resp.status}. Проверьте REPO_OWNER и REPO_NAME в коде.`);
+                }
+                const data = await resp.json();
+                const imageExts = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.bmp'];
+                return data
+                    .filter(f => f.type === 'file' && imageExts.some(ext => f.name.toLowerCase().endsWith(ext)))
+                    .map(f => ({
+                        name: f.name.replace(/\.[^.]+$/, ''),
+                        filename: f.name,
+                        download_url: f.download_url
+                    }));
+            }
+
+            // ==================== EXIF ====================
+            async function extractGPS(url) {
                 try {
                     const resp = await fetch(url);
                     if (!resp.ok) return null;
@@ -253,91 +217,99 @@
                 return null;
             }
 
-            // ==================== Загрузка панорам ====================
+            // ==================== Кеш ====================
+            function loadCache() {
+                try {
+                    const raw = localStorage.getItem(CACHE_KEY);
+                    return raw ? JSON.parse(raw) : {};
+                } catch { return {}; }
+            }
+
+            function saveCache(cache) {
+                try {
+                    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+                } catch (e) {
+                    // localStorage переполнен — чистим старые данные
+                    console.warn('localStorage full, clearing old cache');
+                    localStorage.removeItem(CACHE_KEY);
+                }
+            }
+
+            // ==================== Загрузка ====================
             const listEl = document.getElementById('list');
             const searchInput = document.getElementById('search');
             const countEl = document.getElementById('panorama-count');
-            const progressWrap = document.getElementById('progress-wrap');
-            const progressBar = document.getElementById('progress-bar');
-            const progressText = document.getElementById('progress-text');
-
+            const statusLine = document.getElementById('status-line');
             let panoramas = [];
 
             async function loadPanoramas() {
-                let filesToTry = [];
+                statusLine.textContent = 'Загрузка списка файлов с GitHub...';
 
-                if (FILE_LIST.length > 0) {
-                    filesToTry = FILE_LIST;
-                } else {
-                    // Если список не задан — пробуем распространённые расширения
-                    // (это очень неэффективно, лучше заполнить FILE_LIST)
-                    const exts = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.bmp'];
-                    for (let i = 1; i <= 200; i++) {
-                        for (const ext of exts) {
-                            filesToTry.push(`panorama_${i}${ext}`);
-                            filesToTry.push(`pano_${i}${ext}`);
-                            filesToTry.push(`DSC_${String(i).padStart(4, '0')}${ext}`);
-                        }
-                    }
-                    // Убираем дубликаты
-                    filesToTry = [...new Set(filesToTry)];
-                }
-
-                progressWrap.style.display = 'block';
-                progressText.style.display = 'block';
-                listEl.innerHTML = '<div style="padding:20px;opacity:0.5;text-align:center;">Сканирую панорамы...</div>';
-
-                let found = 0;
-                const totalToTry = filesToTry.length;
-
-                // Обрабатываем небольшими порциями, чтобы не забивать сеть
-                const CHUNK_SIZE = 5;
-                for (let i = 0; i < filesToTry.length; i += CHUNK_SIZE) {
-                    const chunk = filesToTry.slice(i, i + CHUNK_SIZE);
-                    const results = await Promise.all(chunk.map(async (filename) => {
-                        const url = `${PANORAMA_DIR}/${filename}`;
-                        // Проверяем, существует ли файл
-                        try {
-                            const head = await fetch(url, { method: 'HEAD' });
-                            if (!head.ok) return null;
-                        } catch { return null; }
-
-                        const name = filename.replace(/\.[^.]+$/, '');
-                        const coords = await extractGPSFromURL(url);
-                        found++;
-                        return {
-                            name: name,
-                            filename: filename,
-                            lat: coords ? coords.lat : null,
-                            lon: coords ? coords.lon : null,
-                            hasGPS: !!coords
-                        };
-                    }));
-
-                    for (const r of results) {
-                        if (r) panoramas.push(r);
-                    }
-
-                    // Прогресс
-                    const pct = Math.round((i + chunk.length) / totalToTry * 100);
-                    progressBar.style.width = pct + '%';
-                    progressText.textContent = `Проверено ${Math.min(i + chunk.length, totalToTry)} из ${totalToTry}, найдено: ${panoramas.length}`;
-                }
-
-                progressWrap.style.display = 'none';
-                progressText.style.display = 'none';
-
-                if (panoramas.length === 0) {
+                let files;
+                try {
+                    files = await fetchFileList();
+                } catch (e) {
+                    statusLine.textContent = '❌ ' + e.message;
                     listEl.innerHTML = `
-                        <div style="padding:20px;text-align:center;opacity:0.7;">
-                            <p>Панорамы не найдены 😔</p>
-                            <p style="font-size:12px;margin-top:8px;">
-                                Добавьте файлы в папку <code>panoramas/</code><br>
-                                и пропишите их имена в массиве <code>FILE_LIST</code> внутри <code>index.html</code>
-                            </p>
+                        <div style="padding:20px;opacity:0.7;text-align:center;">
+                            <p>Не удалось загрузить список панорам</p>
+                            <p style="font-size:12px;margin-top:8px;">Проверьте REPO_OWNER и REPO_NAME в коде</p>
                         </div>`;
+                    return;
                 }
 
+                if (files.length === 0) {
+                    statusLine.textContent = 'Папка panoramas/ пуста';
+                    listEl.innerHTML = '<div style="padding:20px;opacity:0.5;text-align:center;">Загрузите панорамы в папку panoramas/</div>';
+                    countEl.textContent = '0';
+                    return;
+                }
+
+                statusLine.textContent = `Найдено файлов: ${files.length}. Загружаю координаты...`;
+                const cache = loadCache();
+
+                // Показываем временный список с «загрузкой»
+                panoramas = files.map(f => ({
+                    name: f.name,
+                    filename: f.filename,
+                    download_url: f.download_url,
+                    lat: null,
+                    lon: null,
+                    hasGPS: false,
+                    loading: true
+                }));
+                renderList();
+
+                // Загружаем GPS для каждого файла (по одному, чтобы не перегружать)
+                for (let i = 0; i < files.length; i++) {
+                    const f = files[i];
+                    statusLine.textContent = `Обработка ${i + 1} из ${files.length}: ${f.filename}`;
+
+                    let coords = null;
+
+                    // Проверяем кеш
+                    if (cache[f.filename] && cache[f.filename].lat != null) {
+                        coords = cache[f.filename];
+                    } else {
+                        coords = await extractGPS(f.download_url);
+                        // Сохраняем в кеш
+                        cache[f.filename] = coords || { lat: null, lon: null };
+                        saveCache(cache);
+                    }
+
+                    panoramas[i] = {
+                        name: f.name,
+                        filename: f.filename,
+                        download_url: f.download_url,
+                        lat: coords ? coords.lat : null,
+                        lon: coords ? coords.lon : null,
+                        hasGPS: coords != null,
+                        loading: false
+                    };
+                    renderList(searchInput.value);
+                }
+
+                statusLine.textContent = `Готово! ${panoramas.filter(p => p.hasGPS).length} с GPS из ${panoramas.length}`;
                 refreshAll();
             }
 
@@ -348,7 +320,7 @@
                 );
                 countEl.textContent = `${filtered.length} / ${panoramas.length}`;
 
-                if (filtered.length === 0 && panoramas.length > 0) {
+                if (filtered.length === 0) {
                     listEl.innerHTML = '<div style="padding:20px;opacity:0.5;text-align:center;">Ничего не найдено</div>';
                     return;
                 }
@@ -356,13 +328,13 @@
                 filtered.forEach(p => {
                     const div = document.createElement('div');
                     div.className = 'panorama-item';
-                    div.innerHTML = `
-                        <span>${p.name}</span>
-                        ${p.hasGPS
-                            ? `<span class="coords">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>`
-                            : `<span class="no-coords">без GPS</span>`
-                        }
-                    `;
+                    if (p.loading) {
+                        div.innerHTML = `<span>${p.name}</span><span class="loading-dot">⏳</span>`;
+                    } else if (p.hasGPS) {
+                        div.innerHTML = `<span>${p.name}</span><span class="coords">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>`;
+                    } else {
+                        div.innerHTML = `<span>${p.name}</span><span class="no-coords">без GPS</span>`;
+                    }
                     div.addEventListener('click', () => {
                         openPanorama(p);
                         if (p.hasGPS) flyToPanorama(p);
@@ -379,7 +351,7 @@
                 const bounds = [];
 
                 panoramas.forEach(p => {
-                    if (!p.hasGPS) return;
+                    if (!p.hasGPS || p.loading) return;
                     const marker = L.marker([p.lat, p.lon])
                         .bindPopup(`<b>${p.name}</b><br>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
                         .on('click', () => openPanorama(p));
@@ -407,9 +379,9 @@
             const modalDownload = document.getElementById('modal-download');
 
             function openPanorama(p) {
-                modalImage.src = `${PANORAMA_DIR}/${p.filename}`;
+                modalImage.src = p.download_url;
                 modalName.textContent = p.name;
-                modalDownload.href = `${PANORAMA_DIR}/${p.filename}`;
+                modalDownload.href = p.download_url;
                 modalDownload.download = p.filename;
                 modalOverlay.classList.add('open');
             }
@@ -428,7 +400,7 @@
                 renderList(searchInput.value);
             }
 
-            // Старт
+            // ==================== Старт ====================
             loadPanoramas();
         })();
     </script>
