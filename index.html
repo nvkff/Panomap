@@ -147,8 +147,8 @@
     <script>
         (function () {
             // ==================== НАСТРОЙКИ ====================
-            const REPO_OWNER = 'ВАШ_ЛОГИН';     // ← ЗАМЕНИТЕ на ваш GitHub-логин
-            const REPO_NAME = 'ВАШ_РЕПОЗИТОРИЙ'; // ← ЗАМЕНИТЕ на название репозитория
+            const REPO_OWNER = 'nvkff';
+            const REPO_NAME = 'Panomap';
             const PANORAMA_DIR = 'panoramas';
             const CACHE_KEY = 'pano_cache_v2';
 
@@ -229,7 +229,6 @@
                 try {
                     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
                 } catch (e) {
-                    // localStorage переполнен — чистим старые данные
                     console.warn('localStorage full, clearing old cache');
                     localStorage.removeItem(CACHE_KEY);
                 }
@@ -280,19 +279,17 @@
                 }));
                 renderList();
 
-                // Загружаем GPS для каждого файла (по одному, чтобы не перегружать)
+                // Загружаем GPS для каждого файла (по одному)
                 for (let i = 0; i < files.length; i++) {
                     const f = files[i];
                     statusLine.textContent = `Обработка ${i + 1} из ${files.length}: ${f.filename}`;
 
                     let coords = null;
 
-                    // Проверяем кеш
                     if (cache[f.filename] && cache[f.filename].lat != null) {
                         coords = cache[f.filename];
                     } else {
                         coords = await extractGPS(f.download_url);
-                        // Сохраняем в кеш
                         cache[f.filename] = coords || { lat: null, lon: null };
                         saveCache(cache);
                     }
