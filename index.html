@@ -3,425 +3,434 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Маршрут по Карелии — Санкт-Петербург, Сортавала, Рускеала</title>
+    <title>Мои панорамы</title>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- exifr для чтения GPS из EXIF в браузере -->
+    <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+
     <style>
         :root {
-            --bg: #ffffff;
-            --text: #111111;
-            --muted: #666666;
-            --accent: #1e3a8a;
-            --border: #cccccc;
+            --bg: #1e1e2e;
+            --text: #cdd6f4;
+            --accent: #89b4fa;
+            --hover: #313244;
+            --shadow: 0 4px 24px rgba(0,0,0,0.3);
         }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; overflow: hidden; background: #000; }
+        #map { width: 100%; height: 100vh; z-index: 1; }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Панель */
+        #panel {
+            position: fixed; top: 0; left: 0;
+            width: 320px; height: 100vh;
+            background: var(--bg); color: var(--text);
+            z-index: 1000; box-shadow: var(--shadow);
+            display: flex; flex-direction: column;
+            transition: transform 0.3s;
         }
-
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            display: flex;
-            height: 100vh;
-            background: #fff;
-            color: var(--text);
+        #panel.hidden { transform: translateX(-100%); }
+        #panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex; justify-content: space-between; align-items: center;
         }
-
-        /* ── Боковая панель ── */
-        #sidebar {
-            width: 360px;
-            min-width: 360px;
-            background: #fff;
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            z-index: 1000;
+        #panel-header h2 { font-size: 17px; font-weight: 600; }
+        .count { font-size: 13px; opacity: 0.6; background: rgba(255,255,255,0.06); padding: 3px 10px; border-radius: 20px; }
+        #search {
+            margin: 10px 16px; padding: 10px 14px;
+            border-radius: 8px; border: none;
+            background: rgba(255,255,255,0.06); color: var(--text);
+            font-size: 14px; outline: none;
         }
+        #search::placeholder { color: rgba(205,214,244,0.4); }
 
-        #sidebar-header {
-            padding: 22px 20px 16px;
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            background: #fff;
-            z-index: 2;
+        /* Прогресс-бар */
+        #progress-wrap {
+            margin: 6px 16px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            height: 6px;
+            overflow: hidden;
+            display: none;
         }
-
-        #sidebar-header h1 {
-            font-size: 1.2em;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-            margin-bottom: 4px;
-        }
-
-        #sidebar-header .subtitle {
-            font-size: 0.78em;
-            color: var(--muted);
-        }
-
-        #route-stats {
-            display: flex;
-            gap: 16px;
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid #eee;
-        }
-
-        .stat-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .stat-value {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: var(--accent);
-        }
-
-        .stat-label {
-            font-size: 0.65em;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-
-        #waypoint-list {
-            list-style: none;
-            padding: 6px 0;
-            flex: 1;
-        }
-
-        #waypoint-list li {
-            padding: 12px 20px;
-            cursor: pointer;
-            border-left: 3px solid transparent;
-            transition: all 0.15s ease;
-            display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        #waypoint-list li:hover {
-            background: #f7f7f7;
-            border-left-color: var(--accent);
-        }
-
-        #waypoint-list li.active {
-            background: #eef2ff;
-            border-left-color: var(--accent);
-        }
-
-        .wp-num {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 30px;
-            height: 30px;
-            min-width: 30px;
-            border-radius: 50%;
-            background: #fff;
-            border: 2px solid #aaa;
-            color: #333;
-            font-weight: 700;
-            font-size: 0.85em;
-            transition: all 0.15s ease;
-        }
-
-        #waypoint-list li:hover .wp-num,
-        #waypoint-list li.active .wp-num {
+        #progress-bar {
+            height: 100%;
             background: var(--accent);
-            border-color: var(--accent);
-            color: #fff;
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 6px;
+        }
+        #progress-text {
+            font-size: 11px;
+            opacity: 0.5;
+            margin: 4px 16px;
+            display: none;
+            text-align: center;
         }
 
-        .wp-info {
-            flex: 1;
-            min-width: 0;
-        }
+        #list { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+        #list::-webkit-scrollbar { width: 4px; }
+        #list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
-        .wp-name {
-            font-weight: 600;
-            font-size: 0.88em;
-            margin-bottom: 2px;
+        .panorama-item {
+            padding: 10px 14px; margin: 2px 0;
+            border-radius: 8px; cursor: pointer;
+            font-size: 14px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+            transition: 0.15s;
+            display: flex; justify-content: space-between; align-items: center;
         }
+        .panorama-item:hover { background: var(--hover); }
+        .panorama-item.active { background: rgba(137,180,250,0.12); color: var(--accent); }
+        .panorama-item .coords { font-size: 11px; opacity: 0.4; margin-left: 8px; flex-shrink: 0; }
+        .panorama-item .no-coords { font-size: 11px; color: #f38ba8; margin-left: 8px; flex-shrink: 0; }
 
-        .wp-desc {
-            font-size: 0.72em;
-            color: var(--muted);
-            line-height: 1.35;
+        #toggle-panel {
+            position: fixed; top: 16px; left: 330px; z-index: 1001;
+            width: 38px; height: 38px; border-radius: 50%;
+            background: var(--bg); color: var(--text);
+            border: none; cursor: pointer; font-size: 18px;
+            box-shadow: var(--shadow); transition: left 0.3s;
+            display: flex; align-items: center; justify-content: center;
         }
+        #toggle-panel.shifted { left: 16px; }
+        #toggle-panel:hover { background: #2a2a3c; }
 
-        .wp-dist {
-            font-size: 0.7em;
-            color: var(--accent);
-            margin-top: 3px;
-            font-weight: 600;
+        #layer-control {
+            position: fixed; top: 16px; right: 16px; z-index: 1001;
+            background: var(--bg); border-radius: 10px;
+            padding: 4px; box-shadow: var(--shadow);
+            display: flex; gap: 2px;
         }
-
-        /* ── Карта ── */
-        #map {
-            flex: 1;
-            height: 100vh;
+        .layer-btn {
+            padding: 8px 14px; border: none;
+            background: transparent; color: var(--text);
+            cursor: pointer; border-radius: 7px;
+            font-size: 13px; font-weight: 500;
         }
+        .layer-btn:hover { background: var(--hover); }
+        .layer-btn.active { background: var(--accent); color: #1e1e2e; font-weight: 600; }
 
-        /* ── Адаптив ── */
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-            #sidebar {
-                width: 100%;
-                min-width: 100%;
-                max-height: 38vh;
-                flex-shrink: 0;
-            }
-            #map {
-                height: 62vh;
-                flex: none;
-            }
+        #modal-overlay {
+            display: none; position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0,0,0,0.9);
+            justify-content: center; align-items: center;
         }
-
-        /* ── Кастомные попапы Leaflet ── */
-        .leaflet-popup-content-wrapper {
-            border-radius: 8px;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            border: 1px solid #ddd;
+        #modal-overlay.open { display: flex; }
+        #modal-content {
+            position: relative; max-width: 95vw; max-height: 95vh;
+            background: #111; border-radius: 12px; overflow: hidden;
         }
-
-        .leaflet-popup-content {
-            font-size: 0.88em;
-            margin: 10px 14px;
+        #modal-close {
+            position: absolute; top: 10px; right: 16px; z-index: 10;
+            background: rgba(0,0,0,0.5); color: #fff;
+            border: none; font-size: 28px; width: 40px; height: 40px;
+            border-radius: 50%; cursor: pointer; line-height: 1;
         }
+        #modal-close:hover { background: rgba(255,255,255,0.2); }
+        #modal-image-wrap {
+            max-height: 80vh; overflow: auto;
+            display: flex; justify-content: center;
+        }
+        #modal-image-wrap::-webkit-scrollbar { height: 6px; }
+        #modal-image-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        #modal-image { height: 75vh; width: auto; object-fit: contain; }
+        #modal-info {
+            padding: 12px 20px; display: flex;
+            justify-content: space-between; align-items: center;
+            color: #ccc; font-size: 14px;
+        }
+        #modal-info a { color: var(--accent); text-decoration: none; }
+        #modal-info a:hover { text-decoration: underline; }
 
-        .leaflet-popup-content b {
-            color: var(--accent);
+        @media (max-width: 600px) {
+            #panel { width: 100vw; }
+            #toggle-panel { left: auto; right: 12px; top: 12px; }
+            #layer-control { top: auto; bottom: 20px; right: 12px; }
         }
     </style>
 </head>
 <body>
 
-    <div id="sidebar">
-        <div id="sidebar-header">
-            <h1>🚗 Автомаршрут по Карелии</h1>
-            <div class="subtitle">Санкт-Петербург → Приозерск → Рускеала → Сортавала → СПб</div>
-            <div id="route-stats">
-                <div class="stat-item">
-                    <span class="stat-value">13</span>
-                    <span class="stat-label">Точек</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value" id="total-dist">~560</span>
-                    <span class="stat-label">Км (прямые)</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-value">12</span>
-                    <span class="stat-label">Отрезков</span>
-                </div>
-            </div>
-        </div>
-        <ul id="waypoint-list"></ul>
-    </div>
-
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <div id="panel">
+        <div id="panel-header">
+            <h2>📷 Панорамы</h2>
+            <span class="count" id="panorama-count">0</span>
+        </div>
+        <div id="progress-wrap"><div id="progress-bar"></div></div>
+        <div id="progress-text"></div>
+        <input type="text" id="search" placeholder="🔍 Поиск по названию..." autocomplete="off">
+        <div id="list">
+            <div style="padding:20px;opacity:0.5;text-align:center;">Загрузка...</div>
+        </div>
+    </div>
+
+    <button id="toggle-panel">☰</button>
+
+    <div id="layer-control">
+        <button class="layer-btn active" data-layer="vector">🗺 Вектор</button>
+        <button class="layer-btn" data-layer="satellite">🛰 Спутник</button>
+    </div>
+
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <button id="modal-close">&times;</button>
+            <div id="modal-image-wrap">
+                <img id="modal-image" src="" alt="">
+            </div>
+            <div id="modal-info">
+                <span id="modal-name"></span>
+                <a id="modal-download" href="#" target="_blank">Открыть полностью ↗</a>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // ──────────────────────────────────────────
-        // Точки маршрута
-        // ──────────────────────────────────────────
-        const waypoints = [
-            { num: 1, name: 'Санкт-Петербург', desc: 'Старт маршрута', lat: 59.9343, lng: 30.3351 },
-            { num: 2, name: 'Приозерск — Крепость Корела', desc: 'Каменная крепость XIV века на острове Вуоксы', lat: 61.0391,
-                lng: 30.1291 },
-            { num: 3, name: 'Лахденпохья — Лютеранская кирха', desc: 'Историческая финская кирха, памятник архитектуры',
-                lat: 61.5193, lng: 30.1991 },
-            { num: 4, name: 'Сортавала', desc: 'Столица Приладожья, северный берег Ладоги', lat: 61.7036, lng: 30.6917 },
-            { num: 5, name: 'Водопады Ахвенкоски', desc: 'Каскад на реке Тохмайоки, место съёмок фильмов', lat: 61.9250,
-                lng: 30.5850 },
-            { num: 6, name: 'Горный парк «Рускеала»', desc: 'Знаменитый мраморный каньон с бирюзовой водой', lat: 61.9457,
-                lng: 30.5798 },
-            { num: 7, name: 'Сортавала (ночёвка)', desc: 'Возвращение в город', lat: 61.7050, lng: 30.6930 },
-            { num: 8, name: 'Водопады Койриноя', desc: 'Каскадные пороги и водопады у деревни Койриноя', lat: 61.6730,
-                lng: 30.6880 },
-            { num: 9, name: 'Добыча полудрагоценных камней', desc: 'Кительское месторождение граната', lat: 61.6770,
-                lng: 30.6030 },
-            { num: 10, name: 'Исторический парк «Бастион»', desc: 'Музей живой истории, реконструкция крепости', lat: 61.7030,
-                lng: 30.6900 },
-            { num: 11, name: 'Гора Паасо', desc: 'Древнее городище с панорамным видом на Ладожские шхеры', lat: 61.7180,
-                lng: 30.6680 },
-            { num: 12, name: 'Водопад Метсямикли', desc: 'Уединённый лесной водопад среди карельских скал', lat: 61.9070,
-                lng: 30.5920 },
-            { num: 13, name: 'Санкт-Петербург (финиш)', desc: 'Возвращение домой', lat: 59.9355, lng: 30.3365 },
-        ];
+        (function () {
+            // ==================== Список файлов (захардкожен или генерируется) ====================
+            // Вставьте сюда список ваших файлов вручную, если не хотите гадать.
+            // Либо оставьте массив пустым — сайт попробует распространённые расширения.
+            const PANORAMA_DIR = 'panoramas';
 
-        // ──────────────────────────────────────────
-        // Расстояние (гаверсинус)
-        // ──────────────────────────────────────────
-        function haversineKm(lat1, lng1, lat2, lng2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLng = (lng2 - lng1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng / 2) ** 2;
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
+            // Можно захардкодить имена файлов здесь (если знаете их):
+            // const FILE_LIST = ['закат.jpg', 'вид_с_горы.png', 'панорама_1.jpeg'];
+            // Если FILE_LIST пуст — сайт будет перебирать файлы по номерам (медленно, не рекомендую).
+            const FILE_LIST = [
+                // Впишите сюда имена ваших файлов, например:
+                // 'DSC_0001.jpg',
+                // 'IMG_2024_pano.png',
+            ];
 
-        // ──────────────────────────────────────────
-        // Создание карты
-        // ──────────────────────────────────────────
-        const map = L.map('map', {
-            attributionControl: true,
-        }).setView([61.0, 30.5], 8);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            maxZoom: 18,
-        }).addTo(map);
-
-        // ──────────────────────────────────────────
-        // Фабрика иконок
-        // ──────────────────────────────────────────
-        function makeIcon(num, active = false) {
-            const bg = active ? '#1e3a8a' : '#ffffff';
-            const border = '#1e3a8a';
-            const color = active ? '#ffffff' : '#1e3a8a';
-            return L.divIcon({
-                className: '',
-                html: `<div style="
-                    width:32px;height:32px;
-                    background:${bg};
-                    border:2px solid ${border};
-                    border-radius:50%;
-                    display:flex;align-items:center;justify-content:center;
-                    color:${color};font-weight:700;font-size:13px;
-                    box-shadow:0 2px 8px rgba(0,0,0,0.3);
-                    cursor:pointer;
-                ">${num}</div>`,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
-                popupAnchor: [0, -17],
+            // ==================== Карта ====================
+            const map = L.map('map').setView([55.75, 37.62], 5);
+            const vectorLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OSM', maxZoom: 19
             });
-        }
+            const satelliteLayer = L.tileLayer(
+                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '© Esri', maxZoom: 19
+                }
+            );
+            vectorLayer.addTo(map);
+            const markersGroup = L.layerGroup().addTo(map);
+            const markersMap = new Map();
 
-        // ──────────────────────────────────────────
-        // Расстановка маркеров и линии
-        // ──────────────────────────────────────────
-        const markers = [];
-        const latlngs = [];
+            document.querySelectorAll('.layer-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    if (btn.dataset.layer === 'vector') {
+                        map.removeLayer(satelliteLayer); vectorLayer.addTo(map);
+                    } else {
+                        map.removeLayer(vectorLayer); satelliteLayer.addTo(map);
+                    }
+                });
+            });
 
-        waypoints.forEach((wp) => {
-            const ll = [wp.lat, wp.lng];
-            latlngs.push(ll);
+            const panel = document.getElementById('panel');
+            const toggleBtn = document.getElementById('toggle-panel');
+            toggleBtn.addEventListener('click', () => {
+                panel.classList.toggle('hidden');
+                toggleBtn.classList.toggle('shifted');
+            });
 
-            const marker = L.marker(ll, { icon: makeIcon(wp.num) }).addTo(map);
-            marker.bindPopup(`
-                <b>${wp.num}. ${wp.name}</b><br>
-                <span style="color:#555;font-size:0.85em;">${wp.desc}</span><br>
-                <span style="color:#1e3a8a;font-size:0.75em;">${wp.lat.toFixed(4)}°, ${wp.lng.toFixed(4)}°</span>
-            `);
-            marker._wpIndex = wp.num - 1;
-            markers.push(marker);
-        });
-
-        // Основная линия
-        L.polyline(latlngs, {
-            color: '#1e3a8a',
-            weight: 4,
-            opacity: 0.85,
-            smoothFactor: 1,
-        }).addTo(map);
-
-        // Полупрозрачная подложка
-        L.polyline(latlngs, {
-            color: '#1e3a8a',
-            weight: 14,
-            opacity: 0.1,
-            smoothFactor: 1,
-        }).addTo(map);
-
-        // Вписываем все точки в экран
-        map.fitBounds(L.latLngBounds(latlngs), { padding: [45, 45] });
-
-        // ──────────────────────────────────────────
-        // Боковая панель
-        // ──────────────────────────────────────────
-        const listEl = document.getElementById('waypoint-list');
-        let totalDist = 0;
-
-        waypoints.forEach((wp, i) => {
-            const li = document.createElement('li');
-            li.setAttribute('data-index', i);
-
-            let distStr = '';
-            if (i < waypoints.length - 1) {
-                const d = haversineKm(wp.lat, wp.lng, waypoints[i + 1].lat, waypoints[i + 1].lng);
-                totalDist += d;
-                distStr = `→ ${Math.round(d)} км`;
+            // ==================== Чтение GPS ====================
+            async function extractGPSFromURL(url) {
+                try {
+                    const resp = await fetch(url);
+                    if (!resp.ok) return null;
+                    const blob = await resp.blob();
+                    const gps = await exifr.gps(blob);
+                    if (gps && gps.latitude != null && gps.longitude != null) {
+                        return { lat: gps.latitude, lon: gps.longitude };
+                    }
+                } catch (e) {}
+                return null;
             }
 
-            li.innerHTML = `
-                <div class="wp-num">${wp.num}</div>
-                <div class="wp-info">
-                    <div class="wp-name">${wp.name}</div>
-                    <div class="wp-desc">${wp.desc}</div>
-                    ${distStr ? `<div class="wp-dist">${distStr}</div>` : ''}
-                </div>
-            `;
+            // ==================== Загрузка панорам ====================
+            const listEl = document.getElementById('list');
+            const searchInput = document.getElementById('search');
+            const countEl = document.getElementById('panorama-count');
+            const progressWrap = document.getElementById('progress-wrap');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
 
-            li.addEventListener('click', () => {
-                map.setView([wp.lat, wp.lng], 13, { animate: true });
-                markers[i].openPopup();
+            let panoramas = [];
 
-                document.querySelectorAll('#waypoint-list li').forEach(el => el.classList.remove(
-                    'active'));
-                li.classList.add('active');
+            async function loadPanoramas() {
+                let filesToTry = [];
 
-                markers.forEach((m, idx) => {
-                    m.setIcon(makeIcon(waypoints[idx].num, idx === i));
+                if (FILE_LIST.length > 0) {
+                    filesToTry = FILE_LIST;
+                } else {
+                    // Если список не задан — пробуем распространённые расширения
+                    // (это очень неэффективно, лучше заполнить FILE_LIST)
+                    const exts = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.bmp'];
+                    for (let i = 1; i <= 200; i++) {
+                        for (const ext of exts) {
+                            filesToTry.push(`panorama_${i}${ext}`);
+                            filesToTry.push(`pano_${i}${ext}`);
+                            filesToTry.push(`DSC_${String(i).padStart(4, '0')}${ext}`);
+                        }
+                    }
+                    // Убираем дубликаты
+                    filesToTry = [...new Set(filesToTry)];
+                }
+
+                progressWrap.style.display = 'block';
+                progressText.style.display = 'block';
+                listEl.innerHTML = '<div style="padding:20px;opacity:0.5;text-align:center;">Сканирую панорамы...</div>';
+
+                let found = 0;
+                const totalToTry = filesToTry.length;
+
+                // Обрабатываем небольшими порциями, чтобы не забивать сеть
+                const CHUNK_SIZE = 5;
+                for (let i = 0; i < filesToTry.length; i += CHUNK_SIZE) {
+                    const chunk = filesToTry.slice(i, i + CHUNK_SIZE);
+                    const results = await Promise.all(chunk.map(async (filename) => {
+                        const url = `${PANORAMA_DIR}/${filename}`;
+                        // Проверяем, существует ли файл
+                        try {
+                            const head = await fetch(url, { method: 'HEAD' });
+                            if (!head.ok) return null;
+                        } catch { return null; }
+
+                        const name = filename.replace(/\.[^.]+$/, '');
+                        const coords = await extractGPSFromURL(url);
+                        found++;
+                        return {
+                            name: name,
+                            filename: filename,
+                            lat: coords ? coords.lat : null,
+                            lon: coords ? coords.lon : null,
+                            hasGPS: !!coords
+                        };
+                    }));
+
+                    for (const r of results) {
+                        if (r) panoramas.push(r);
+                    }
+
+                    // Прогресс
+                    const pct = Math.round((i + chunk.length) / totalToTry * 100);
+                    progressBar.style.width = pct + '%';
+                    progressText.textContent = `Проверено ${Math.min(i + chunk.length, totalToTry)} из ${totalToTry}, найдено: ${panoramas.length}`;
+                }
+
+                progressWrap.style.display = 'none';
+                progressText.style.display = 'none';
+
+                if (panoramas.length === 0) {
+                    listEl.innerHTML = `
+                        <div style="padding:20px;text-align:center;opacity:0.7;">
+                            <p>Панорамы не найдены 😔</p>
+                            <p style="font-size:12px;margin-top:8px;">
+                                Добавьте файлы в папку <code>panoramas/</code><br>
+                                и пропишите их имена в массиве <code>FILE_LIST</code> внутри <code>index.html</code>
+                            </p>
+                        </div>`;
+                }
+
+                refreshAll();
+            }
+
+            function renderList(filter = '') {
+                listEl.innerHTML = '';
+                const filtered = panoramas.filter(p =>
+                    p.name.toLowerCase().includes(filter.toLowerCase())
+                );
+                countEl.textContent = `${filtered.length} / ${panoramas.length}`;
+
+                if (filtered.length === 0 && panoramas.length > 0) {
+                    listEl.innerHTML = '<div style="padding:20px;opacity:0.5;text-align:center;">Ничего не найдено</div>';
+                    return;
+                }
+
+                filtered.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'panorama-item';
+                    div.innerHTML = `
+                        <span>${p.name}</span>
+                        ${p.hasGPS
+                            ? `<span class="coords">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>`
+                            : `<span class="no-coords">без GPS</span>`
+                        }
+                    `;
+                    div.addEventListener('click', () => {
+                        openPanorama(p);
+                        if (p.hasGPS) flyToPanorama(p);
+                    });
+                    listEl.appendChild(div);
                 });
-            });
+            }
 
-            listEl.appendChild(li);
-        });
+            searchInput.addEventListener('input', () => renderList(searchInput.value));
 
-        document.getElementById('total-dist').textContent = '~' + Math.round(totalDist);
+            function createMarkers() {
+                markersGroup.clearLayers();
+                markersMap.clear();
+                const bounds = [];
 
-        // Клик по маркеру → подсветка в панели
-        markers.forEach((marker, i) => {
-            marker.on('click', () => {
-                document.querySelectorAll('#waypoint-list li').forEach(el => el.classList.remove(
-                    'active'));
-                const li = listEl.querySelector(`li[data-index="${i}"]`);
-                if (li) li.classList.add('active');
-
-                markers.forEach((m, idx) => {
-                    m.setIcon(makeIcon(waypoints[idx].num, idx === i));
+                panoramas.forEach(p => {
+                    if (!p.hasGPS) return;
+                    const marker = L.marker([p.lat, p.lon])
+                        .bindPopup(`<b>${p.name}</b><br>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
+                        .on('click', () => openPanorama(p));
+                    markersGroup.addLayer(marker);
+                    markersMap.set(p, marker);
+                    bounds.push([p.lat, p.lon]);
                 });
-            });
-        });
 
-        // ──────────────────────────────────────────
-        // Метки СТАРТ / ФИНИШ
-        // ──────────────────────────────────────────
-        const startIcon = L.divIcon({
-            className: '',
-            html: '<div style="background:#1e3a8a;color:#fff;padding:3px 8px;border-radius:3px;font-weight:700;font-size:10px;white-space:nowrap;">СТАРТ</div>',
-            iconSize: [56, 22],
-            iconAnchor: [28, 11],
-        });
-        const finishIcon = L.divIcon({
-            className: '',
-            html: '<div style="background:#dc2626;color:#fff;padding:3px 8px;border-radius:3px;font-weight:700;font-size:10px;white-space:nowrap;">ФИНИШ</div>',
-            iconSize: [56, 22],
-            iconAnchor: [28, 11],
-        });
+                if (bounds.length > 0) {
+                    map.fitBounds(bounds, { padding: [40, 40] });
+                }
+            }
 
-        L.marker([waypoints[0].lat - 0.02, waypoints[0].lng], { icon: startIcon, interactive: false }).addTo(map);
-        L.marker([waypoints[12].lat + 0.02, waypoints[12].lng], { icon: finishIcon, interactive: false }).addTo(map);
+            function flyToPanorama(p) {
+                if (!p.hasGPS) return;
+                map.flyTo([p.lat, p.lon], 15, { duration: 1 });
+                const marker = markersMap.get(p);
+                if (marker) marker.openPopup();
+            }
+
+            // Модальное окно
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalImage = document.getElementById('modal-image');
+            const modalName = document.getElementById('modal-name');
+            const modalDownload = document.getElementById('modal-download');
+
+            function openPanorama(p) {
+                modalImage.src = `${PANORAMA_DIR}/${p.filename}`;
+                modalName.textContent = p.name;
+                modalDownload.href = `${PANORAMA_DIR}/${p.filename}`;
+                modalDownload.download = p.filename;
+                modalOverlay.classList.add('open');
+            }
+
+            function closeModal() {
+                modalOverlay.classList.remove('open');
+                modalImage.src = '';
+            }
+
+            document.getElementById('modal-close').addEventListener('click', closeModal);
+            modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+            function refreshAll() {
+                createMarkers();
+                renderList(searchInput.value);
+            }
+
+            // Старт
+            loadPanoramas();
+        })();
     </script>
 </body>
 </html>
